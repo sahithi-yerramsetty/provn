@@ -34,8 +34,6 @@ To see a failed send in the UI: `FAIL_DELIVERY=push npm run dev`.
 
 ## Section A: System design
 
-> Check the Provn page for the exact headings of Sections A, B and C. These three sections cover design, product decisions and AI use; rename them to match.
-
 ### Pipeline
 
 ```
@@ -124,9 +122,7 @@ A discount only happens when the section is under 60% sold, there are 7+ days to
 
 ## Section C: How I used AI
 
-> Fill this from `docs/AI_LOG.md` with your own real examples. Be specific: what you asked, what came back, what you changed and why. This is the highest-signal part of the scoring.
-
-- Tools used:
-- How I scoped tasks for the AI (specs, tests as guardrails):
-- What I rejected or changed on review:
-- My redirection moment (same one as the video):
+- **Tools used:**
+- **How I scoped tasks for the AI (specs, tests as guardrails):**
+- **What I rejected or changed on review:**
+- **My redirection moment (same one as the video):**
