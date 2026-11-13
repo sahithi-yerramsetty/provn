@@ -70,11 +70,15 @@ export interface Proposal {
   cartIds: string[];
   matchLabel: string;
   section: string;
+  sectionSoldPct: number | null;
   seats: number;
   cartValue: number | null;
   offer: OfferType;
   discountPct: number; // 0 unless promo_code. Hard cap 15.
   promoCode?: string; // single-use, generated at send time
+  matchStartsAt: string; // ISO. Promo codes expire at kickoff.
+  codeExpiresAt?: string;
+  economics: Economics; // money impact shown to the marketer
   channel: Channel;
   optIns: { email: boolean; push: boolean }; // re-checked at send time
   reason: string; // why this fan + this offer (for the marketer)
@@ -84,6 +88,13 @@ export interface Proposal {
   status: ProposalStatus;
   editedBy?: string;
   error?: string;
+}
+
+export interface Economics {
+  cartValue: number; // full price of the cart
+  discountCost: number; // what the discount gives away if the fan buys
+  revenueIfConverts: number; // what we collect if the fan buys
+  note: string; // plain-English summary for the marketer
 }
 
 export type SkipCategory =

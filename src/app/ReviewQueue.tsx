@@ -77,6 +77,10 @@ export default function ReviewQueue() {
         <Stat label="Stale carts" value={s.cartsIn} />
         <Stat label="Offers to review" value={pending} />
         <Stat label="With a discount" value={s.discounted} />
+        <Stat
+          label="Max given away"
+          value={`$${state.proposals.filter((p) => p.status !== "rejected").reduce((t, p) => t + p.economics.discountCost, 0).toFixed(2)}`}
+        />
         <Stat label="No offer" value={s.skipped} />
         <Stat label="AI-written copy" value={`${s.aiMessages}/${s.proposals}`} />
       </section>
@@ -193,6 +197,17 @@ function OfferCard({ p, onState }: { p: Proposal; onState: (s: State) => void })
       </div>
 
       <p className="reason"><b>Why:</b> {p.reason}</p>
+
+      <div className={`money ${p.economics.discountCost > 0 ? "cost" : "free"}`}>
+        <div className="moneyRow">
+          <span>If the fan buys: <b>${p.economics.revenueIfConverts.toFixed(2)}</b></span>
+          <span>Given away: <b>${p.economics.discountCost.toFixed(2)}</b></span>
+        </div>
+        <div className="small">{p.economics.note}</div>
+        {p.offer === "promo_code" && (
+          <div className="small">Code expires at kickoff: {new Date(p.matchStartsAt).toLocaleString()}</div>
+        )}
+      </div>
       {p.flags.length > 0 && (
         <ul className="flags">{p.flags.map((f) => <li key={f} className={f.startsWith("GUARDRAIL") ? "bad" : ""}>{f}</li>)}</ul>
       )}
@@ -225,7 +240,9 @@ function OfferCard({ p, onState }: { p: Proposal; onState: (s: State) => void })
         <blockquote className="message">{p.message}</blockquote>
       )}
 
-      {p.promoCode && <p className="small">Code issued: <code>{p.promoCode}</code> (single use)</p>}
+      {p.promoCode && (
+        <p className="small">Code issued: <code>{p.promoCode}</code> (single use, expires at kickoff)</p>
+      )}
       {(errors.length > 0 || p.error) && (
         <div className="banner error small">{errors.length ? errors.join(" ") : p.error}</div>
       )}

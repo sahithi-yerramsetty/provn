@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import carts from "../src/data/staleCarts.json";
 import { runEngine } from "../src/engine/engine";
-import { approveAndSend, outbox } from "../src/engine/delivery";
+import { approveAndSend, outbox, redeemPromoCode } from "../src/engine/delivery";
 import { guardrailErrors } from "../src/engine/guardrails";
 import { createMemoryLedger } from "../src/engine/ledger";
 import { templateMessage, type CopyWriter } from "../src/engine/message";
@@ -133,5 +133,65 @@ describe("never send twice", () => {
     delete process.env.FAIL_DELIVERY;
     expect(out.status).toBe("failed");
     expect(out.error).toMatch(/Send failed/);
+  });
+});
+
+describe("money impact shown to the marketer", () => {
+  it("promo offer shows what the discount gives away", () => {
+    const p = proposalFor("C-1002")!; // $140, 10%
+    expect(p.economics.discountCost).toBe(14);
+    expect(p.economics.revenueIfConverts).toBe(126);
+  });
+  it("reminders give away nothing", () => {
+    for (const id of ["C-1001", "C-1003", "C-1004"]) {
+      const p = proposalFor(id)!;
+      expect(p.economics.discountCost).toBe(0);
+      expect(p.economics.revenueIfConverts).toBe(p.cartValue);
+    }
+  });
+});
+
+describe("promo codes expire at kickoff", () => {
+  const DAY = 86_400_000;
+
+  async function sentPromo(now: Date) {
+    const ledger = createMemoryLedger();
+    const res = await runEngine(raw, { copy: templateCopy, ledger, now });
+    const p = res.proposals.find((x) => x.offer === "promo_code")!;
+    return approveAndSend(p, ledger, now);
+  }
+
+  it("works before kickoff, then only once", async () => {
+    const now = new Date("2026-11-12T12:00:00Z");
+    const sent = await sentPromo(now);
+    expect(sent.codeExpiresAt).toBe(sent.matchStartsAt);
+    expect(redeemPromoCode(sent.promoCode!, sent.fanId, now).ok).toBe(true);
+    const again = redeemPromoCode(sent.promoCode!, sent.fanId, now);
+    expect(again.ok).toBe(false);
+  });
+
+  it("is rejected after kickoff", async () => {
+    const now = new Date("2026-11-12T12:00:00Z");
+    const sent = await sentPromo(now);
+    const afterKickoff = new Date(Date.parse(sent.matchStartsAt) + 1000);
+    const r = redeemPromoCode(sent.promoCode!, sent.fanId, afterKickoff);
+    expect(r).toEqual({ ok: false, reason: "Code expired at kickoff." });
+  });
+
+  it("can't be used by another fan", async () => {
+    const sent = await sentPromo(new Date());
+    expect(redeemPromoCode(sent.promoCode!, "F-999").ok).toBe(false);
+  });
+
+  it("approving after the match started is blocked (no code issued)", async () => {
+    const ledger = createMemoryLedger();
+    const now = new Date("2026-11-12T12:00:00Z");
+    const res = await runEngine(raw, { copy: templateCopy, ledger, now });
+    const p = res.proposals.find((x) => x.offer === "promo_code")!;
+    const late = new Date(now.getTime() + 30 * DAY);
+    const out = await approveAndSend(p, ledger, late);
+    expect(out.status).toBe("pending");
+    expect(out.promoCode).toBeUndefined();
+    expect(out.error).toMatch(/already started/);
   });
 });

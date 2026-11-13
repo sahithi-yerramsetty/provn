@@ -7,7 +7,7 @@ A proof of concept that looks at stale ticket carts, decides which fans are wort
 ```bash
 npm install
 npm run dev        # UI → http://localhost:3000
-npm test           # 19 engine tests (vitest)
+npm test           # 25 engine tests (vitest)
 ```
 
 Optional: set `ANTHROPIC_API_KEY` to have the model write the message copy. Without it, the engine uses templates (and every test runs without it).
@@ -67,6 +67,7 @@ Every cart ends up in exactly one place: a proposal or the "No offer" list with 
 - **Consent:** channel only from opted-in options. Rechecked after every edit and at send. The UI disables opted-out channels.
 - **Never twice:** idempotency key `team:fan:match:trigger`. The ledger slot is claimed *before* the provider call, so a double click or retry can't double-send. Re-runs skip contacted fans.
 - **Discount guardrail:** max 15%, single-use code generated only at approval. The copy can't mention a different % than the real offer.
+- **Codes expire at kickoff:** a win-back code is useless once the match starts, so checkout (`redeemPromoCode`) rejects it after kickoff, after one use, or for a different fan. Approving an offer after kickoff is blocked and no code is issued.
 - **Failures are visible:** blocked edits, blocked approvals and failed sends show on the card, in a banner and in the activity log. Failed sends are **not** auto-retried.
 
 ### Monitoring (no ops team, so this is the minimum)
@@ -82,7 +83,7 @@ The run summary is shown at the top of the UI. In production, log it daily and a
 
 - In-memory store → Postgres tables: `proposals`, `send_ledger` (UNIQUE on key), `promo_codes` (max 1 redemption), `audit_log`.
 - Run the engine as a daily scheduled job, not on page load.
-- Real match IDs from ticketing instead of parsing "in 4 days".
+- Real match IDs and kickoff times from ticketing instead of parsing "in 4 days" (kickoff is estimated as now + N days in this POC).
 - Guest → fan linking via a real email lookup instead of the stubbed map.
 - Swap the stub providers for the transactional email API and the app's push service.
 - Auth on the marketer UI; per-team access as teams onboard.
@@ -101,6 +102,10 @@ The run summary is shown at the top of the UI. In production, log it daily and a
 | C-1004 (F-333) | Reminder, email + **flag for sales** | Season pass holder, 40 tickets, 97% sold. A discount would give away revenue from a loyal fan. Best handled by the salesperson. |
 | C-1005 (F-777) | **No offer** | Match already played. |
 | C-1007 (F-618) | **No offer** | League team still onboarding, shop data "Not synced". Out of scope for sprint 1. |
+
+### Money impact on every card
+
+Each offer shows **what we collect if the fan buys** and **what the discount gives away**. The top of the page shows the total that would be given away if every pending discount converts. In the sample, the only discount is F-511's 10% code: up to $14 given away to try to sell $140 of seats that are likely to stay empty. Every other offer gives away $0.
 
 ### When NOT to discount
 

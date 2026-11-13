@@ -5,12 +5,28 @@ import { resolveIdentity, SAMPLE_EMAIL_LINKS, staticIdentityLookup, type Identit
 import { createMemoryLedger, type Ledger } from "./ledger";
 import { writeCopy, type CopyWriter } from "./message";
 import { normalize } from "./normalize";
-import type { Cart, EngineResult, Proposal, RawCart, Skipped } from "./types";
+import type { Cart, Economics, EngineResult, OfferType, Proposal, RawCart, Skipped } from "./types";
 
 export interface EngineDeps {
   identity?: IdentityLookup;
   ledger?: Ledger;
   copy?: CopyWriter;
+  now?: Date;
+}
+
+export function computeEconomics(cartValue: number | null, offer: OfferType, discountPct: number, sectionSoldPct: number | null): Economics {
+  const value = cartValue ?? 0;
+  const discountCost = Math.round(value * discountPct) / 100;
+  const revenueIfConverts = Math.round((value - discountCost) * 100) / 100;
+  let note: string;
+  if (discountPct > 0) {
+    note = `Gives away $${discountCost.toFixed(2)} to try to sell $${value} of seats that are likely to stay empty (section ${sectionSoldPct ?? "?"}% sold).`;
+  } else if (offer === "merch_addon") {
+    note = `No ticket discount. Full $${value} if the fan buys, plus possible merch revenue.`;
+  } else {
+    note = `No discount, $0 given away. Full $${value} if the fan comes back.`;
+  }
+  return { cartValue: value, discountCost, revenueIfConverts, note };
 }
 
 const TRIGGER = "cart_winback";
@@ -27,6 +43,7 @@ export async function runEngine(raw: RawCart[], deps: EngineDeps = {}): Promise<
   const identity = deps.identity ?? staticIdentityLookup(SAMPLE_EMAIL_LINKS);
   const ledger = deps.ledger ?? createMemoryLedger();
   const copy = deps.copy ?? writeCopy;
+  const now = deps.now ?? new Date();
 
   const skipped: Skipped[] = [];
   const skip = (carts: Cart[], category: Skipped["category"], reason: string) =>
@@ -122,8 +139,12 @@ export async function runEngine(raw: RawCart[], deps: EngineDeps = {}): Promise<
       cartIds: g.carts.map((x) => x.cartId),
       matchLabel: g.primary.matchLabel,
       section: g.primary.section,
+      sectionSoldPct: g.primary.sectionSoldPct,
       seats: g.primary.seats,
       cartValue: g.primary.cartValue,
+      // Sample data only has "in N days". Production: real kickoff time from ticketing.
+      matchStartsAt: new Date(now.getTime() + (g.primary.daysUntilMatch ?? 0) * 86_400_000).toISOString(),
+      economics: computeEconomics(g.primary.cartValue, d.offer, d.discountPct, g.primary.sectionSoldPct),
       offer: d.offer,
       discountPct: d.discountPct,
       channel,

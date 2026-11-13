@@ -1,6 +1,6 @@
 import carts from "@/data/staleCarts.json";
 import { approveAndSend } from "@/engine/delivery";
-import { runEngine } from "@/engine/engine";
+import { computeEconomics, runEngine } from "@/engine/engine";
 import { guardrailErrors } from "@/engine/guardrails";
 import { createMemoryLedger, type Ledger } from "@/engine/ledger";
 import type { EngineResult, Proposal, RawCart } from "@/engine/types";
@@ -86,7 +86,11 @@ export async function act(id: string, action: Action) {
       log(id, "edit_blocked", errs.join(" "));
       return { ok: false, errors: errs, state: await getState() };
     }
-    next = { ...draft, error: undefined };
+    next = {
+      ...draft,
+      economics: computeEconomics(draft.cartValue, draft.offer, draft.discountPct, draft.sectionSoldPct),
+      error: undefined,
+    };
     log(id, "edited");
   }
 
